@@ -209,7 +209,7 @@ void SetupShaderForFrame(const Shader::sptr& shader, const glm::mat4& view, cons
 	shader->SetUniformMatrix("u_View", view);
 	shader->SetUniformMatrix("u_ViewProjection", projection * view);
 	shader->SetUniformMatrix("u_SkyboxMatrix", projection * glm::mat4(glm::mat3(view)));
-	glm::vec3 camPos = glm::inverse(view) * glm::vec4(0,0,0,1);
+	glm::vec3 camPos = glm::inverse(view)[3]; //*glm::vec4(0, 0, 0, 1);
 	shader->SetUniform("u_CamPos", camPos);
 }
 
@@ -223,7 +223,7 @@ int main() {
 	//Initialize GLAD
 	if (!initGLAD())
 		return 1;
-
+	
 	int frameIx = 0;
 	float fpsBuffer[128];
 	float minFps, maxFps, avgFps;
@@ -328,15 +328,16 @@ int main() {
 		glDepthFunc(GL_LEQUAL); // New  
 
 		#pragma region TEXTURE LOADING
-
+		
 		// Load some textures from files
 		Texture2D::sptr diffuse = Texture2D::LoadFromFile("images/Stone_001_Diffuse.png");
+		Texture2D::sptr diffuse3 = Texture2D::LoadFromFile("images/box_reflection.png");
 		Texture2D::sptr diffuse2 = Texture2D::LoadFromFile("images/box.bmp");
 		Texture2D::sptr specular = Texture2D::LoadFromFile("images/Stone_001_Specular.png"); 
 
 		// Load the cube map
-		TextureCubeMap::sptr environmentMap = TextureCubeMap::LoadFromImages("images/cubemaps/skybox/sample.jpg");
-		//TextureCubeMap::sptr environmentMap = TextureCubeMap::LoadFromImages("images/cubemaps/skybox/ocean.jpg"); 
+		//TextureCubeMap::sptr environmentMap = TextureCubeMap::LoadFromImages("images/cubemaps/skybox/sample.jpg");
+		TextureCubeMap::sptr environmentMap = TextureCubeMap::LoadFromImages("images/cubemaps/skybox/ocean.jpg"); 
 
 		// Creating an empty texture
 		Texture2DDescription desc = Texture2DDescription();
@@ -372,7 +373,7 @@ int main() {
 		material0->Set("s_Specular", specular);
 		material0->Set("u_Shininess", 8.0f);
 		material0->Set("u_TextureMix", 0.5f); 
-
+		
 		// Load a second material for our reflective material!
 		Shader::sptr reflectiveShader = Shader::Create();
 		reflectiveShader->LoadShaderPartFromFile("shaders/vertex_shader.glsl", GL_VERTEX_SHADER);
@@ -382,7 +383,10 @@ int main() {
 		ShaderMaterial::sptr reflectiveMat = ShaderMaterial::Create();
 		reflectiveMat->Shader = reflectiveShader;
 		reflectiveMat->Set("s_Environment", environmentMap);
-		// TODO: send the rotation to apply to the skybox
+		reflectiveMat->Set("u_EnvironmentRotation", glm::mat3(
+			glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0))));
+		reflectiveMat->Set("s_Diffuse3", diffuse3);
+
 
 		GameObject sceneObj = scene->CreateEntity("scene_geo");
 		{
@@ -446,9 +450,9 @@ int main() {
 
 			// We'll make our camera a component of the camera object
 			Camera& camera = cameraObject.emplace<Camera>();// Camera::Create();
-			camera.SetPosition(glm::vec3(0, 3, 3));
-			camera.SetUp(glm::vec3(0, 0, 1));
-			camera.LookAt(glm::vec3(0));
+			//camera.SetPosition(glm::vec3(0, 3, 3));
+			//camera.SetUp(glm::vec3(0, 0, 1));
+			//camera.LookAt(glm::vec3(0));
 			camera.SetFovDegrees(90.0f); // Set an initial FOV
 			camera.SetOrthoHeight(3.0f);
 			BehaviourBinding::Bind<CameraControlBehaviour>(cameraObject);
@@ -456,7 +460,7 @@ int main() {
 
 		#pragma endregion 
 		//////////////////////////////////////////////////////////////////////////////////////////
-
+		
 		/////////////////////////////////// SKYBOX ///////////////////////////////////////////////
 		{
 			// Load our shaders
@@ -468,7 +472,9 @@ int main() {
 			ShaderMaterial::sptr skyboxMat = ShaderMaterial::Create();
 			skyboxMat->Shader = skybox;  
 			skyboxMat->Set("s_Environment", environmentMap);
-			// TODO: send the rotation to apply to the skybox
+			skyboxMat->Set("u_EnvironmentRotation", glm::mat3(
+				glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)))
+			);
 			skyboxMat->RenderLayer = 100;
 
 			MeshBuilder<VertexPosNormTexCol> mesh;
@@ -536,7 +542,7 @@ int main() {
 			frameIx++;
 			if (frameIx >= 128)
 				frameIx = 0;
-
+			
 			// We'll make sure our UI isn't focused before we start handling input for our game
 			if (!ImGui::IsAnyWindowFocused()) {
 				// We need to poll our key watchers so they can do their logic with the GLFW state
